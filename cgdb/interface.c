@@ -96,7 +96,7 @@ static int tty_win_height_shift = 0;
 #define WIDTH       (screen_size.ws_col)
 
 /* Current window split state */
-WIN_SPLIT_TYPE cur_win_split = WIN_SPLIT_EVEN;
+WIN_SPLIT_TYPE cur_win_split = WIN_SPLIT_TOP_BIG;
 
 /* --------------- */
 /* Local Variables */
@@ -1092,6 +1092,7 @@ static void source_input(struct sviewer *sview, int key)
             handle_request(tgdb, request_ptr);
         }
             break;
+	case CGDB_KEY_F9:
         case ' ':
         {
             enum tgdb_breakpoint_action t = TGDB_BREAKPOINT_ADD;
@@ -1301,7 +1302,7 @@ int internal_if_input(int key)
                     handle_request(tgdb, request_ptr);
                 }
                     return 0;
-                case CGDB_KEY_F6:
+                case CGDB_KEY_F8:
                     /* Issue GDB continue command */
                 {
                     tgdb_request_ptr request_ptr;
@@ -1312,7 +1313,7 @@ int internal_if_input(int key)
                     handle_request(tgdb, request_ptr);
                 }
                     return 0;
-                case CGDB_KEY_F7:
+                case CGDB_KEY_F12:
                     /* Issue GDB finish command */
                 {
                     tgdb_request_ptr request_ptr;
@@ -1323,7 +1324,7 @@ int internal_if_input(int key)
                     handle_request(tgdb, request_ptr);
                 }
                     return 0;
-                case CGDB_KEY_F8:
+                case CGDB_KEY_F10:
                     /* Issue GDB next command */
                 {
                     tgdb_request_ptr request_ptr;
@@ -1333,7 +1334,7 @@ int internal_if_input(int key)
                     handle_request(tgdb, request_ptr);
                 }
                     return 0;
-                case CGDB_KEY_F10:
+                case CGDB_KEY_F11:
                     /* Issue GDB step command */
                 {
                     tgdb_request_ptr request_ptr;
