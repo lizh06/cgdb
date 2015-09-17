@@ -804,6 +804,13 @@ static int gdb_input(int key)
             scr_end(gdb_win);
             break;
 
+		case CGDB_KEY_F9:
+        {
+            enum tgdb_breakpoint_action t = TGDB_BREAKPOINT_ADD;
+            toggle_breakpoint(sview, t);
+        }
+            break;
+
         case CGDB_KEY_F5:
             /* Issue GDB run command */
         {
