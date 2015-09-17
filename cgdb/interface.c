@@ -803,14 +803,9 @@ static int gdb_input(int key)
         case CGDB_KEY_END:
             scr_end(gdb_win);
             break;
-
-		case CGDB_KEY_F9:
-        {
-            enum tgdb_breakpoint_action t = TGDB_BREAKPOINT_ADD;
-            toggle_breakpoint(sview, t);
-        }
+        case CGDB_KEY_F9:
+            toggle_breakpoint(src_win, TGDB_BREAKPOINT_ADD);
             break;
-
         case CGDB_KEY_F5:
             /* Issue GDB run command */
         {
@@ -1148,8 +1143,7 @@ static void source_input(struct sviewer *sview, int key)
             handle_request(tgdb, request_ptr);
         }
             break;
-	case CGDB_KEY_F9:
-        case ' ':
+        case ' ': case CGDB_KEY_F9:
         {
             enum tgdb_breakpoint_action t = TGDB_BREAKPOINT_ADD;
 
