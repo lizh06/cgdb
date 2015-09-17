@@ -778,6 +778,9 @@ static int tty_input(int key)
     return 0;
 }
 
+static int
+toggle_breakpoint(struct sviewer *sview, enum tgdb_breakpoint_action t);
+
 /* gdb_input: Handles user input to the GDB window.
  * ----------
  *
