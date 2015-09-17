@@ -763,10 +763,10 @@ static int tty_input(int key)
         case CGDB_KEY_NPAGE:
             scr_down(tty_win, get_tty_height() - 1);
             break;
-        case CGDB_KEY_F11:
+        case CGDB_KEY_HOME:
             scr_home(tty_win);
             break;
-        case CGDB_KEY_F12:
+        case CGDB_KEY_END:
             scr_end(tty_win);
             break;
         default:
@@ -797,12 +797,61 @@ static int gdb_input(int key)
         case CGDB_KEY_NPAGE:
             scr_down(gdb_win, get_gdb_height() - 1);
             break;
-        case CGDB_KEY_F11:
+        case CGDB_KEY_HOME:
             scr_home(gdb_win);
             break;
-        case CGDB_KEY_F12:
+        case CGDB_KEY_END:
             scr_end(gdb_win);
             break;
+
+        case CGDB_KEY_F5:
+            /* Issue GDB run command */
+        {
+            tgdb_request_ptr request_ptr;
+            request_ptr =
+                    tgdb_request_run_debugger_command(tgdb, TGDB_RUN);
+            handle_request(tgdb, request_ptr);
+        }
+            return 0;
+        case CGDB_KEY_F8:
+            /* Issue GDB continue command */
+        {
+            tgdb_request_ptr request_ptr;
+            request_ptr =
+                    tgdb_request_run_debugger_command(tgdb,
+                    TGDB_CONTINUE);
+            handle_request(tgdb, request_ptr);
+        }
+            return 0;
+        case CGDB_KEY_F12:
+            /* Issue GDB finish command */
+        {
+            tgdb_request_ptr request_ptr;
+            request_ptr =
+                    tgdb_request_run_debugger_command(tgdb,
+                    TGDB_FINISH);
+            handle_request(tgdb, request_ptr);
+        }
+            return 0;
+        case CGDB_KEY_F10:
+            /* Issue GDB next command */
+        {
+            tgdb_request_ptr request_ptr;
+            request_ptr =
+                    tgdb_request_run_debugger_command(tgdb, TGDB_NEXT);
+            handle_request(tgdb, request_ptr);
+        }
+            return 0;
+        case CGDB_KEY_F11:
+            /* Issue GDB step command */
+        {
+            tgdb_request_ptr request_ptr;
+            request_ptr =
+                    tgdb_request_run_debugger_command(tgdb, TGDB_STEP);
+            handle_request(tgdb, request_ptr);
+        }
+            return 0;
+
 #if 0
             /* I would like to add better support for control-l in the GDB
              * window, but this patch didn't make me happy enough to release it.
