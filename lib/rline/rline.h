@@ -12,13 +12,12 @@
  * instance.
  */
 
-#include "tgdb_list.h"
 #include "std_list.h"
 
-/* Createing and Destroying a librline context. {{{ */
+/* Creating and Destroying a librline context. {{{ */
 /******************************************************************************/
 /**
- * @name Createing and Destroying a librline context.
+ * @name Creating and Destroying a librline context.
  * These functions are for createing and destroying a rline context.
  */
 /******************************************************************************/
@@ -62,7 +61,7 @@ typedef int completion_cb(int, int);
  * NULL on error, a valid context on success.
  */
 struct rline *rline_initialize(int slavefd, command_cb * command,
-        completion_cb * completion, char *TERM);
+        completion_cb * completion, const char *TERM);
 
 /**
  * This will terminate a librline session. No functions should be called on
@@ -240,8 +239,8 @@ typedef void (*display_callback) (char **, int, int);
  * \param rline
  * The readline context to operate on.
  *
- * \param list
- * The list of possible items to complete.
+ * \param completions
+ * The array of possible items to complete.
  *
  * \param display_cb
  * This function will be called with a list of possible completions, if there are any.
@@ -249,8 +248,8 @@ typedef void (*display_callback) (char **, int, int);
  * \return
  * 0 on success or -1 on error.
  */
-int rline_rl_complete(struct rline *rline, struct tgdb_list *list,
-        display_callback display_cb);
+int rline_rl_complete(struct rline *rline, char **completions,
+    display_callback display_cb);
 
 /**
  * This will adjust the size of the PTY that readline is working on, then 
@@ -308,7 +307,7 @@ int rline_get_rl_completion_query_items(struct rline *rline);
  * 0 on success or -1 on error
  */
 int rline_get_keyseq(struct rline *rline, const char *named_function,
-        std_list keyseq_list);
+        std_list_ptr keyseq_list);
 
 /*@}*/
 /* }}}*/

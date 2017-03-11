@@ -7,7 +7,7 @@
  * be directed through this unit.
  *
  * All char pointers passed to functions in this unit should be FSUTIL_PATH_MAX
- * in length at a minumum. Unfortunatly, the POSIX PATH_MAX can't be used here
+ * in length at a minimum. Unfortunately, the POSIX PATH_MAX can't be used here
  * since it isn't defined with the HURD OS.
  *
  * Anyways, I think in the long run the static buffer will not be the best
@@ -15,7 +15,7 @@
  * for the sake of time, it is done this way.
  ******************************************************************************/
 
-#define FSUTIL_PATH_MAX 1024
+#define FSUTIL_PATH_MAX 4096
 
 /* fs_util_is_valid:
  * -----------------
@@ -26,7 +26,6 @@
  *
  *  Returns 1 on succes and 0 on failure
  */
-
 int fs_util_is_valid(const char *dir);
 
 /* fs_util_create_dir:
@@ -76,4 +75,18 @@ void fs_util_get_path(const char *base, const char *name, char *path);
  * and paths stored in $PATH.
  */
 int fs_util_file_exists_in_path(char * filePath);
+
+/* fs_verify_file_exists path:
+ * ----------------------------
+ *
+ * Checks if the file exists.
+ *
+ * @param path
+ * The path to determine if it exists or not.
+ *
+ * @return
+ * 1 if the file exists, otherwise 0.
+ */
+int fs_verify_file_exists(const char *path);
+
 #endif

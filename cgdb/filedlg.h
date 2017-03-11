@@ -11,7 +11,7 @@ struct filedlg;
  *   height:  height (in lines) of the viewer
  *   width:   width (in columns) of the viewer
  *
- * return value:  a new filedlg object on success, null on failure.
+ * return value:  a new filedlg object on success.
  */
 struct filedlg *filedlg_new(int pos_r, int pos_c, int height, int width);
 
@@ -41,12 +41,13 @@ void filedlg_clear(struct filedlg *fd);
  *   fdlg:  The file dialog to free.
  *   key :  The next key of input to process
  *   file:  The file the user selected
+ *   last_key_pressed: Last key use hit (for gg support)
  *
  *  returns -1 when aborted by user.
  *  returns 0 when needs more input
  *  returns 1 when done ( file is valid )
  */
-int filedlg_recv_char(struct filedlg *fd, int key, char *file);
+int filedlg_recv_char(struct filedlg *fd, int key, char *file, int last_key_pressed);
 
 /* filedlg_display_message: Displays a message on the filedlg window status bar.
  * ------------------------

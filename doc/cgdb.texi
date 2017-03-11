@@ -84,12 +84,8 @@ split screen showing the source as it executes.  The UI is modeled on the
 classic Unix text editor, vi.  Those familiar with vi should feel right at 
 home using CGDB.
 
-The library responsible for communicating with GDB is called Trivial GDB 
-(tgdb, or more accurately, libtgdb).  This abstraction allows the UI code to 
-be independent of the debugger, as well as greatly simplifying its 
-implementation.
-
-Those wanting to develop other interfaces to GDB are welcome to use libtgdb 
+The library responsible for communicating with GDB is called gdbwire.
+Those wanting to develop other interfaces to GDB are welcome to use gdbwire 
 as the basis for their program.  Many of the headaches of parsing GDB's output 
 and annotations can be avoided by using it.
 
@@ -134,14 +130,13 @@ currently hanging, or operating a long command.
 @cindex status bar
 @cindex CGDB mode
 @cindex GDB mode
-@cindex TTY mode
 The CGDB user interface currently consists of two windows and a status bar.  
 The source window is currently on the top and the GDB window is on the 
 bottom.  The @dfn{status bar} currently separates the two windows.
 
 The interface has several modes depending on which window is focused.  
-@dfn{CGDB mode} is when the source window is focused, @dfn{GDB mode} is when 
-the GDB window is focused and @dfn{TTY mode} is when the TTY window is focused.
+@dfn{CGDB mode} is when the source window is focused and @dfn{GDB mode} is when 
+the GDB window is focused.
 
 Beginning with CGDB version 1.0, the windows are movable,
 and the user will be able to create as many or as few that is desired. 
@@ -154,7 +149,6 @@ task, please contact me.
 * Source Window::               Understanding the source window.
 * GDB Window::                  Understanding the GDB window.
 * File Dialog Window::          Understanding the file dialog window.
-* TTY Window::                  Understanding the TTY window.
 * Status Bar::                  Understanding the status bar.
 * Switching Windows::           Switching between windows.
 @end menu
@@ -181,13 +175,15 @@ In addition to showing the source code, CGDB also displays to the user the
 currently executing line. The line number will be highlighted green, to
 represent that the particular line, is the current line being debugged by GDB.
 Also, CGDB will display an arrow extending from the line number, to the 
-source line.  You can configure what type of arrow CGDB uses with the
-@code{:set arrowstyle} configuration option. By default, the @code{short}
-arrow is used.  However, my personal favorite is the @code{long} arrow.
+source line.  You can configure what type of display CGDB uses with the
+@code{:set executinglinedisplay} configuration option. By default,
+the @code{longarrow} display is used.
 
 As you navigate through the source window, the current line the cursor is
-on will be highlighted white.  This simply helps you keep track of where you
-are in the file.
+on will be highlighted with a block.  This simply helps you keep track of
+where you are in the file. You can configure what type of display CGDB uses
+with the @code{:set selectedlinedisplay} configuration option. By deafult,
+the @code{block} display is used.
 
 Also, you can set or delete breakpoints in CGDB from the source window.  Simply
 navigate to the line that you are interested in setting a breakpoint, and hit
@@ -226,6 +222,9 @@ finishes, they will each be run in order.  There will be no way to stop these
 commands from being run besides from typing @kbd{Ctrl-C}, like you would at any
 normal terminal when working with GDB.
 
+@cindex regular expression search
+CGDB also supports regular expression searching within the GDB window.
+
 @node File Dialog Window
 @section Understanding the file dialog window.
 @cindex file dialog window
@@ -246,30 +245,6 @@ lot of time as the number of files grow.
 
 The full list of commands that are available in the source window is in
 @ref{File Dialog Mode}.
-
-@node TTY Window
-@section Understanding the TTY window.
-@cindex tty window
-
-@cindex TTY window
-The @dfn{TTY window} is available to allow the user to pass input to the program 
-being debugged. This window will act similar to the GDB window, except that
-the data you type will get sent to the program being debugged.  
-@xref{Sending I/O to Inferior}.
-
-You will notice that the TTY window has a terminal device between it and the 
-program being debugged.  So, if the program being debugged uses say readline, 
-which allows command line editing, the same interface will be provided via the
-TTY window as at the terminal.  You can see the name of the terminal device 
-in the TTY status bar.
-
-The full list of commands that are available in the source window is in
-@ref{TTY Mode}.
-
-Sending I/O to the program being debugged can be confusing.  It is described
-better in @ref{Sending I/O to Inferior}.  Unless the I/O with the program
-being debugged is simple, I usually prefer starting the application on a
-separate terminal and attaching to it with CGDB.
 
 @node Status Bar
 @section Understanding the status bar.
@@ -322,7 +297,6 @@ what commands are accessible during which modes.
 * CGDB Mode::                   Commands available during CGDB mode
 * GDB Mode::                    Commands available during GDB mode
 * File Dialog Mode::            Commands available during the file dialog mode
-* TTY Mode::                    Commands available during TTY mode
 @end menu
 
 @node CGDB Mode
@@ -342,22 +316,22 @@ This is defaulted to the @key{ESC} key.
 @item i
 Puts the user into @dfn{GDB mode}.
 
-@item I
-Puts the user into @dfn{TTY mode}.
-
-@item T
-Opens a window to give input to the debugged program.
+@item s
+Puts the user into scroll mode in the @dfn{GDB mode}.
 
 @item Ctrl-T
 Opens a new tty for the debugged program.
 
-@item k
-@itemx up arrow
-Move up a line.
+@item Ctrl-W
+Toggle the window orientation (horizontal <-> vertical).
 
-@item j
-@itemx down arrow
-Move down a line.
+@item [<number>]k
+@itemx [<number>]up arrow
+Move up a line or up @samp{<number>} lines.
+
+@item [<number>]j
+@itemx [<number>]down arrow
+Move down a line or down @samp{<number>} lines.
 
 @item h
 @itemx left arrow
@@ -384,8 +358,23 @@ Move down 1/2 a page.
 @item gg
 Move to the top of file.
 
-@item G
-Move to the bottom of file.
+@item [<number>]G
+Move to the bottom of file or to a line number within the file.
+
+@item m[a-zA-Z]
+Set a mark at the cursor position.  A lower case letter sets a local mark
+that is valid within one file.  An upper case letter sets a global mark
+valid between files. If there are ten files, each file can have a mark
+@samp{a}, but only one can have a mark @samp{A}.
+
+@item '[a-zA-Z]
+Jump to the corresponding local or global mark.
+
+@item ''
+Jump to the last jump location.
+
+@item '.
+Jump to the currently executing line.
 
 @item /
 search from current cursor position.
@@ -409,16 +398,16 @@ Sets a breakpoint at the current line number.
 Sets a temporary breakpoint at the current line number.
 
 @item -
-Shrink source window 1 line.
+Shrink source window 1 line or column (depending on split orientation).
 
 @item =
-Grow source window 1 line.
+Grow source window 1 line or column (depending on split orientation).
 
 @item _
-Shrink source window 25% (or, shrink tty window 1 line, if visible).
+Shrink source window 25%
 
 @item +
-Grow source window 25% (or, grow tty window 1 line, if visible).
+Grow source window 25%
 
 @item Ctrl-l
 Clear and redraw the screen.
@@ -443,15 +432,27 @@ Send a step command to GDB.
 @section Commands available during GDB mode
 @cindex commands, in GDB mode
 
-When in @dfn{GDB mode}, the user is mostly interested in working with the GDB 
-console.  That is, sending commands to GDB and receiving data back from GDB.
-Almost all data passed into this window is directly sent to readline and then
-to GDB.
+When in @dfn{GDB mode}, the user is in command mode or scroll mode.
+When in command mode, the user is typing in commands to interact with GDB.
+When in scroll mode, the user can scroll through the GDB output.
+You can enter scroll mode by typing @kbd{page up} and quit scroll mode
+by typing @kbd{q}, @kbd{i} or @kbd{enter}.
 
-It is important to understand that CGDB parses the keys entered in
-the GDB window and has the first chance at dealing with them.  If it is
-interested in the keys, it will handle them. Below is a list of keys that
-CGDB is interested in, and does not pass along any further.
+The commands available in @ref{GDB Mode} when in command mode are:
+
+@table @kbd
+@item cgdbmodekey
+Switch back to source window.  This is defaulted to the @key{ESC} key.
+
+@item page up
+Move up a page and enter scroll mode.
+@end table
+
+When in command mode, CGDB will pass along any other keys to the readline
+library. When readline has determined that a command has been received, it
+alerts CGDB, and a command is then sent to GDB.
+
+The commands available in @ref{GDB Mode} when in scroll mode are:
 
 @table @kbd
 @item cgdbmodekey
@@ -463,17 +464,61 @@ Move up a page.
 @item page down
 Move down a page.
 
+@item Ctrl-u
+Move up 1/2 a page.
+
+@item Ctrl-d
+Move down 1/2 a page.
+
 @item F11
+@itemx home key
+@itemx gg
 Go to the beginning of the GDB buffer.
 
 @item F12
+@itemx end key
+@itemx G
 Go to the end of the GDB buffer.
-@end table
 
-Any other keys, besides the ones above, CGDB is currently not interested in.  
-CGDB will pass along these keys to the readline library. When readline has 
-determined that a command has been received, it alerts CGDB, and a command is
-then sent to GDB. This is the same method used when invoking GDB directly.
+@item k
+@itemx up arrow
+@itemx Ctrl-p
+Move up a line.
+
+@item j
+@itemx down arrow
+@itemx Ctrl-n
+Move down a line.
+
+@item /
+search from current cursor position.
+
+@item ?
+reverse search from current cursor position.
+
+@item n
+next forward search.
+
+@item N
+next reverse search.
+
+@item m[a-z]
+Set a mark at the cursor position. 
+
+@item '[a-z]
+Jump to the corresponding mark.
+
+@item ''
+Jump to the last jump location.
+
+@item '.
+Jump to the last line.
+
+@item q
+@itemx i
+@itemx enter
+Exit scroll mode.
+@end table
 
 @node File Dialog Mode
 @section Commands available during the file dialog mode
@@ -513,9 +558,22 @@ Move right a line.
 @itemx page up
 Move up a page.
 
+@item Ctrl-u
+Move up 1/2 a page.
+
 @item Ctrl-f
 @itemx page down
 Move down a page.
+
+@item Ctrl-d
+Move down 1/2 a page.
+
+@item gg
+Move to the top of the file dialog.
+
+@item [<number>]G
+Move to the bottom of the file dialog or to a line number within the file
+dialog.
 
 @item /
 search from current cursor position.
@@ -531,26 +589,6 @@ next reverse search.
 
 @item enter
 Select the current file.
-@end table
-
-@node TTY Mode
-@section Commands available during TTY mode
-@cindex commands, in TTY mode
-
-@table @kbd
-@item cgdbmodekey
-Switch back to source window. This is defaulted to the @key{ESC} key.
-@item page up
-Move up a page.
-
-@item page down
-Move down a page.
-
-@item F11
-Go to the beginning of the GDB buffer.
-
-@item F12
-Go to the end of the GDB buffer.
 @end table
 
 @node Configuring CGDB
@@ -570,15 +608,6 @@ my be negated by appending @samp{no} to the front.  For example:
 @kbd{:set noignorecase} turns on case-sensitive searching.
 
 @table @kbd
-@item :set as=@var{style}
-@itemx :set arrowstyle=@var{style}
-Set the arrow style to @var{style}.  Possible values for @var{style}
-are @samp{short}, @samp{long}, and @samp{highlight}.  Changes the style of 
-the arrow that is used to indicate the currently executing line in the source 
-viewer.  The default value is short.  A longer arrow is available, for easier 
-readability.  Finally, the @samp{highlight} option draws no arrow at all, 
-instead drawing the entire line in inverse video.
-
 @item :set asr
 @itemx :set autosourcereload
 If this is on, CGDB will automatically reload a source file if it has 
@@ -600,12 +629,79 @@ readline in vi mode.  If the user types @code{set cgdbmodekey=<PageUp>}
 then the @kbd{Page Up} key will put CGDB into CGDB mode and the @kbd{ESC}
 key will flow through to readline.
 
+@item :set color
+This option is used to enable or disable color support in CGDB.
+The default is on.  When enabled, CGDB can display color when appropriate.
+This typically occurs when syntax highlighting source files in the source
+viewer.  When disabled, CGDB will not display colors.  It may instead use
+other terminal attributes for syntax highlighting, including bold and
+reverse attributes.  See the @code{highlight} commamnd and look for the
+@samp{cterm} option.
+
+It should be noted that even when color is enabled in CGDB, if ncurses
+declares that the terminal does not support colors, CGDB will not use colors.
+
+@item :set dwc
+@itemx :set debugwincolor
+This option controls if the debug window will display colors or not.
+The default value is on.  When enabled, if GDB or the program being debugged
+output an ANSI escape code representing color, then CGDB will display the
+corresponding color instead of the escape code.  When disabled, CGDB will
+display the ANSI escape code in the debug window.
+See @uref{https://en.wikipedia.org/wiki/ANSI_escape_code#Colors} to learn
+more about ANSI escape codes.
+
+@item :set dis
+@item :set disasm
+This option is used to enable or disable showing assembly code in cgdb.
+The default value is off.  When off, CGDB will display the source code
+to the user.  When no source code is available, CGDB will display the
+assembly code.  When this option is enabled, CGDB will display the mixed
+source and assembly when the source code is enabled and assembly code
+when the source code is not available. Please note that when assembly
+mode is displayed, it's displayed per function instead of per file.
+
+@item :set eld=@var{style}
+@itemx :set executinglinedisplay=@var{style}
+Set the executing line display to @var{style}.  Possible values for @var{style}
+are @samp{shortarrow}, @samp{longarrow}, @samp{highlight}, and @samp{block}.
+Changes the display that is used to indicate the currently executing line in
+the source viewer.  The default value is @samp{longarrow}.
+The @samp{shortarrow} option draws an arrow next to the source line number.
+The @samp{longarrow} option also draws an arrow next to the source line
+number, but extends the arrow until the source code.  The @samp{highlight}
+option draws the entire line in inverse video and the @samp{block} option
+draws an inverse block (cursor) next to the source code being executed.
+
+@item :set hls
+@itemx :set hlsearch
+When enabled, if there is a previous search pattern, highlight all its matches.
+The default is disabled.
+
 @item :set ic
 @itemx :set ignorecase
 Sets searching case insensitive.  The default is off.
 
-@item :set stc
-@itemx :set showtgdbcommands
+@item :set sld=@var{style}
+@itemx :set selectedlinedisplay=@var{style}
+Set the selected line display to @var{style}.  Possible values for @var{style}
+are @samp{shortarrow}, @samp{longarrow}, @samp{highlight}, and @samp{block}.
+Changes the display that is used to indicate the currently selected line in
+the source viewer.  The default value is @samp{block}.
+The @samp{shortarrow} option draws an arrow next to the source line number.
+The @samp{longarrow} option also draws an arrow next to the source line
+number, but extends the arrow until the source code.  The @samp{highlight}
+option draws the entire line in inverse video and the @samp{block} option
+draws an inverse block (cursor) next to the source code being selected.
+
+@item :set showmarks
+This option controls if the source window will show marks or not.
+The default value is on. When enabled, CGDB will show the marks that
+the user has set in the vertical bar in the source window separating
+the line number from the source code.
+
+@item :set sdc
+@itemx :set showdebugcommands
 If this is on, CGDB will show all of the commands that it sends to GDB. 
 If it is off, CGDB will not show the commands that it gives to GDB. 
 The default is off. 
@@ -613,11 +709,15 @@ The default is off.
 @item :set syn=@var{style}
 @itemx :set syntax=@var{style}
 Sets the current highlighting mode of the current file to have the syntax 
-@var{style}.  Possible values for @var{syntax} are @samp{c}, @samp{ada}, and 
-@samp{off}.  Normally, the user will never have to do this, since CGDB 
-automatically detects what syntax a file should be based on its file 
-extension.  However, this feature can currently be useful for debugging 
-purposes.
+@var{style}.  Possible values for @var{syntax} are @samp{c}, @samp{asm},
+@samp{d}, @samp{go}, @samp{ada}, @samp{rust}, @samp{off}, @samp{no},
+@samp{on} or @samp{yes}.  Normally, the user will never have to do this,
+since CGDB automatically detects what syntax a file should be based on
+its file extension.  However, this feature can currently be useful for
+debugging purposes. @samp{on} and @samp{yes} enable syntax highlighting based
+on the source files extension. @samp{off} and @samp{no} disable syntax
+highlighting. The remaining values set the specific language highlighters
+independent of the source files extension.
 
 @item :set to
 @itemx :set timeout
@@ -670,13 +770,27 @@ characters.  The default value for @var{number} is 8.
 @item :set wmh=@var{number}
 @itemx :set winminheight=@var{number}
 The minimal height of a window.  Windows will never become smaller than 
-this value.  The default value for @var{number} is 0.
+this value.  The default value for @var{number} is 0. This is useful
+when @var{winsplitorientation} is set to @samp{horizontal}.
+
+@item :set wmw=@var{number}
+@itemx :set winminwidth=@var{number}
+The minimal width of a window.  Windows will never become smaller than 
+this value.  The default value for @var{number} is 0. This is useful
+when @var{winsplitorientation} is set to @samp{vertical}.
 
 @item :set winsplit=@var{style}
 Set the split point between source and GDB window.  This is especially useful
 as an init setting in your @file{cgdbrc} file.  @xref{Configuring CGDB}.  The 
-possible values for @var{style} are @samp{top_full}, @samp{top_big}, 
-@samp{even}, @samp{bottom_big}, and @samp{bottom_full}.
+possible values for @var{style} are @samp{src_full}, @samp{src_big}, 
+@samp{even}, @samp{gdb_big}, and @samp{gdb_full}.
+
+@item :set wso=@var{style}
+@itemx :set winsplitorientation=@var{style}
+Sets the window split orientation to either @samp{horizontal} (which places
+the source window above and the GDB window below), or @samp{vertical} (
+hich places the source window on the left and the GDB window on the right). 
+@xref{Configuring CGDB}.
 
 @item :set ws
 @itemx :set wrapscan
@@ -701,6 +815,9 @@ Send a finish command to GDB.
 @item :help
 This will display the current manual in text format, in the 
 @dfn{source window}.
+
+@item :logo
+This will display one of CGDB's logos in the @dfn{source window}.
 
 @item :hi @var{group} cterm=@var{attributes} ctermfg=@var{color} ctermbg=@var{color} term=@var{attributes}
 @itemx :highlight @var{group} cterm=@var{attributes} ctermfg=@var{color} ctermbg=@var{color} term=@var{attributes}
@@ -845,15 +962,31 @@ displaying it's User Interface.
 @item StatusLine
 This represents the @dfn{status bar} in CGDB.  The file dialog's status 
 bar also uses this group.
+@item Search
+This represents the group used when displaying the previous search in
+either the source window, the GDB window in scroll mode, or the @dfn{file
+dialog window}. This is only used when the @var{hlsearch} option is enabled.
 @item IncSearch
 This represents the group used when the user is searching in either the source 
-window, or the @dfn{file dialog window}.
-@item Arrow
-This represents the arrow that CGDB draws to point to the currently viewed 
-line.
-@item LineHighlight
-This represents the group used when the user has the @code{arrowstyle} option 
-set to @code{highlight}.
+window, the GDB window in scroll mode, or the @dfn{file dialog window}.
+@item SelectedLineArrow
+This represents the group used when the user has the
+@code{selectedlinedisplay} set to @code{shortarrow} or @code{longarrow}.
+@item ExecutingLineArrow
+This represents the group used when the user has the
+@code{executinglinedisplay} set to @code{shortarrow} or @code{longarrow}.
+@item SelectedLineHighlight
+This represents the group used when the user has the
+@code{selectedlinedisplay} option set to @code{highlight}.
+@item ExecutingLineHighlight
+This represents the group used when the user has the
+@code{executinglinedisplay} option set to @code{highlight}.
+@item SelectedLineBlock
+This represents the group used when the user has the
+@code{selectedlinedisplay} option set to @code{block}.
+@item ExecutingLineBlock
+This represents the group used when the user has the
+@code{executinglinedisplay} option set to @code{block}.
 @item Breakpoint
 This represents the group that is used when CGDB displays a line that has a 
 breakpoint set.
@@ -863,9 +996,20 @@ disabled breakpoint set.
 @item SelectedLineNr
 This represents the group that is used when CGDB is displaying the currently
 selected line.  This is the line that the cursor is on.
+@item ExecutingLineNr
+This represents the group that is used when CGDB is displaying the currently
+executing line.
+@item ScrollModeStatus
+This represents the group that is used when CGDB is displaying the currently
+selected line number when in @ref{GDB Mode} and the user is scrolling
+through the GDB buffer.
 @item Logo
 This is the group CGDB uses to display its logo on startup when no source 
 file can be auto detected.
+@item Mark
+This is the group CGDB uses to display a mark in the source window.
+Marks are displayed when the @code{showmarks} option is enabled.
+See the @code{showmarks} option for more detail.
 @end table
 
 
@@ -904,81 +1048,62 @@ This will cause the text to be 1/2 bright.  Uses A_DIM curses attribute.
 @section The different colors
 @cindex colors
 
-CGDB supports several colors, depending on how many colors your terminal 
-supports.  Below is a chart of the colors that CGDB provides.  The heading 
-NR-16 is used to represent terminals that support at least 16 colors.  The
-heading NR-8 is used to represent terminals that support at least 8 colors.  
-The integer values for each color represent the values passed to the curses
-function init_pair() to ask curses to create a new color.
+CGDB supports several colors, depending on how many colors your terminal
+supports.  Below is a chart of the colors that CGDB provides.
+The values for each color represent the defines from the curses header
+file passed to init_pair() to ask curses to create a new color.
 
 @multitable @columnfractions .4 .2 .2 .2
 @item @code{COLOR NAME}
-@tab @code{NR-16}
-@tab @code{NR-8}
-@tab @code{NR-8 bold attribute}
+@tab @code{Color}
+@tab @code{Bold attribute}
 @item Black
-@tab 0
-@tab 0
+@tab COLOR_BLACK
 @tab No
 @item DarkBlue
-@tab 1
-@tab 4
+@tab COLOR_BLUE
 @tab No
 @item DarkGreen
-@tab 2
-@tab 2
+@tab COLOR_GREEN
 @tab No
 @item DarkCyan
-@tab 3
-@tab 6
+@tab COLOR_CYAN
 @tab No
 @item DarkRed
-@tab 4
-@tab 1
+@tab COLOR_RED
 @tab No
 @item DarkMagenta
-@tab 5
-@tab 5
+@tab COLOR_MAGENTA
 @tab No
 @item Brown, DarkYellow
-@tab 6
-@tab 3
+@tab COLOR_YELLOW
 @tab No
 @item LightGray, LightGrey, Gray, Grey
-@tab 7
-@tab 7
+@tab COLOR_WHITE
 @tab No
 @item DarkGray, DarkGrey
-@tab 8
-@tab 0
+@tab COLOR_BLACK
 @tab Yes
 @item Blue, LightBlue
-@tab 9
-@tab 4
+@tab COLOR_BLUE
 @tab Yes
 @item Green, LightGreen
-@tab 10
-@tab 2
+@tab COLOR_GREEN
 @tab Yes
 @item Cyan, LightCyan
-@tab 11
-@tab 6
+@tab COLOR_CYAN
 @tab Yes
 @item Red, LightRed
-@tab 12
-@tab 1
+@tab COLOR_RED
 @tab Yes
 @item Magenta, LightMagenta
-@tab 13
-@tab 5
+@tab COLOR_MAGENTA
 @tab Yes
 @item Yellow, LightYellow
-@tab 14
-@tab 3
+@tab COLOR_YELLOW
 @tab Yes
 @item White
-@tab 15
-@tab 7
+@tab COLOR_WHITE
 @tab Yes
 @end multitable
 
@@ -1195,39 +1320,6 @@ that the user start the program on one terminal, and attach to it with CGDB
 from another terminal.  This is the easiest way to pass input to the 
 debugged program.
 
-However, if the user wishes to pass input to the program being debugged from
-within CGDB, there is a mechanism available for doing so.  As of this writing, 
-the technique described below does not work on windows, using a natively 
-compiled GDB.  It may work when using the GDB that comes with Cygwin.
-
-This technique is similar to getting in and out of @dfn{GDB mode}.  The tty 
-window is not visible by default.  This is because it is only needed if the 
-user wishes to send data to the program being debugged.  To display the tty 
-window, hit @kbd{T} while in command mode.  After hitting @kbd{T} you will 
-notice that there is another window in the middle of the @dfn{source window} 
-and the @dfn{gdb window}.  This is called the @dfn{tty window}. You will also 
-see a new status bar called the tty status bar.  There will be a @samp{*} on 
-the tty status bar after the @kbd{T} was hit.  This is because when the 
-window is opened with the @kbd{T} command, CGDB automatically puts the user 
-into @dfn{TTY mode}.  To get out of this window hit the cgdb mode key.  
-This will put you back into command mode.  To make the tty window appear and 
-disappear hit the @kbd{T} key while in command mode.  It is a toggle.
-
-Once the tty window is already open, the user can then hit @kbd{I} in
-command mode to get into @dfn{TTY mode}.  The user can then hit the 
-cgdb mode key in the @dfn{TTY mode} to get back into command mode.
-
-When the tty window is open, all data that comes from the program, goes
-there.  Any data typed into the tty window will ONLY go to the program
-being debugged.  It will not go to GDB. When the tty window is closed,
-all output from the debugged program will go to the @dfn{GDB window} AND to
-the @dfn{tty window} (for viewing later when the tty window is opened). 
-
-If the user wishes to get a new tty for the program being debugged then
-they can type @kbd{Ctrl-T}.  This will delete all the buffered data
-waiting to be read into the debugged program. This might be useful when
-you rerun or start a new program.
-
 @node Terminal Control Flow
 @chapter Allowing terminal control flow in CGDB
 @cindex terminal control flow
@@ -1246,8 +1338,8 @@ readline, simply turn off control flow and start CGDB.
 @cindex building CGDB
 
 Building CGDB from source requires several packages. First, CGDB is hosted
-at http://sf.net/projects/cgdb. You can determine how to get CGDB from source 
-by looking here: http://sourceforge.net/svn/?group_id=72581.
+at GitHub. You can determine how to get CGDB from source by looking here:
+https://cgdb.github.io/
 
 Once you have the source to CGDB, now you can begin to build it.  You will of 
 course need many packages to build CGDB. Below is a list of all of them 
@@ -1283,11 +1375,6 @@ flex installed.  I have used flex 2.5.4 to build CGDB.
 If you modify @file{doc/cgdb.texinfo}, then you will be required to have this 
 package installed.  I have used version 4.7 to build the documentation for 
 CGDB.
-
-@item help2man
-If you are doing a release, then you will be required to have this package
-installed.  In the @file{doc/} build directory, you can execute the command 
-@code{make cgdb.1}, and the CGDB man page will be generated.
 @end table
 
 CGDB uses autoconf/automake to build its configure scripts and makefiles.  So, 
