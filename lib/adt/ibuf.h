@@ -1,18 +1,10 @@
 #ifndef __IBUF_H__
 #define __IBUF_H__
 
-#if HAVE_CONFIG_H
-#include "config.h"
-#endif /* HAVE_CONFIG_H */
-
-#if HAVE_STDLIB_H
-#include <stdlib.h>
-#endif /* HAVE_STDLIB_H */
-
-/* A simple interface to an infinate string */
+/* A simple interface to an infinite string */
 struct ibuf;
 
-/* ibuf_init: Returns a new infinate string.  */
+/* ibuf_init: Returns a new infinite string.  */
 struct ibuf *ibuf_init(void);
 
 /* ibuf_free: free a string */
@@ -21,17 +13,25 @@ void ibuf_free(struct ibuf *s);
 /* clears the string s */
 void ibuf_clear(struct ibuf *s);
 
-/* ibuf_addchar: Adds a char to the infinate buffer
- *  s - the infinate string to modify
+/* ibuf_addchar: Adds a char to the infinite buffer
+ *  s - the infinite string to modify
  *  c - the char to add
  */
 void ibuf_addchar(struct ibuf *s, char c);
 
-/* ibuf_add: Adds a char to the infinate buffer
- *  s - the infinate string to modify
- *  d - the string to add
+/**
+ * Adds a char to the infinite buffer.
+ *
+ * @param s
+ * the infinite string to modify
+ *
+ * @param d
+ * the string to add
+ *
+ * @return
+ * The number of characters added to the buffer (the length of d)
  */
-void ibuf_add(struct ibuf *s, const char *d);
+int ibuf_add(struct ibuf *s, const char *d);
 
 /* ibuf_delchar: Delete the last char put in */
 void ibuf_delchar(struct ibuf *s);
@@ -53,10 +53,5 @@ unsigned long ibuf_length(struct ibuf *s);
  *    New string on success, NULL on error.
  */
 struct ibuf *ibuf_dup(struct ibuf *s);
-
-/**
- * Trim whitespace from the head and tail of the string.
- */
-void ibuf_trim(struct ibuf *s);
 
 #endif /* HAVE_CONFIG_H */

@@ -60,7 +60,7 @@ void if_print(const char *buf);
  *
  * fmt:     The message to display
  */
-void if_print_message(const char *fmt, ...);
+void if_print_message(const char *fmt, ...) ATTRIBUTE_PRINTF( 1, 2 );
 
 /* if_tty_print: Prints data to the tty input/output window.
  * -------------
@@ -69,13 +69,30 @@ void if_print_message(const char *fmt, ...);
  */
 void if_tty_print(const char *buf);
 
+/**
+ * Print a readline prompt change.
+ *
+ * @param buf
+ * The buffer that readline has put out to edit the prompt.
+ */
+void if_rl_print(const char *buf);
+
+/**
+ * Print a debugger command run by CGDB when showdebugcommands is enabled.
+ *
+ * @param command
+ * The command that CGDB is about to issue to GDB.
+ */
+void if_sdc_print(const char *command);
+
 /* if_show_file: Displays the requested file in the source display window.
  * -------------
  *
  *   path:  Full path to the file to display
- *   line:  Current line of the file being executed
+ *   sel_line:  Current line of the file being selected (0 to leave unchanged)
+ *   exe_line:  Current line of the file being executed (0 to leave unchanged)
  */
-void if_show_file(char *path, int line);
+void if_show_file(char *path, int sel_line, int exe_line);
 
 /* if_get_sview: Return a pointer to the source viewer object.
  * -------------
@@ -95,7 +112,8 @@ struct sviewer *if_get_sview();
  *
  * fmt:     The message to display
  */
-void if_display_message(const char *msg, int width, const char *fmt, ...);
+void if_display_message(const char *msg, enum win_refresh dorefresh,
+                        int width, const char *fmt, ...) ATTRIBUTE_PRINTF( 4, 5 );
 
 /* if_clear_filedlg: Clears all the files the file dialog has to show the user.
  * -----------------
@@ -124,12 +142,11 @@ void if_shutdown(void);
 /* enum Focus: An enumeration representing a focus state. 
  * ------------
  *  GDB: focus on the gdb i/o window
- *  TTY: focus on the debugged program i/o window
  *  CGDB: focus on source window, accepts command input.
  *  CGDB_STATUS_BAR: focus on the status bar, accepts commands.
  *  FILE_DLG: focus on file dialog window
  */
-typedef enum Focus { GDB, TTY, CGDB, CGDB_STATUS_BAR, FILE_DLG } Focus;
+typedef enum Focus { GDB, CGDB, CGDB_STATUS_BAR, FILE_DLG } Focus;
 
 /* if_set_focus: Sets the current input focus to a different window 
  * ------------
@@ -148,20 +165,31 @@ Focus if_get_focus(void);
  */
 void if_display_help(void);
 
+/** 
+ * Display a new logo in the source window.
+ *
+ * @param reset
+ * If 0, will not reset the logo, otherwise will.
+ */
+void if_display_logo(int reset);
+
 /* if_search_next: finds the next match in a given direction.
  * ------------
  */
 void if_search_next(void);
 
-/* if_tty_toggle: 
- * ------------
- */
-void if_tty_toggle(void);
-
 /* if_draw:
  * -----------
  */
 void if_draw(void);
+
+ /**
+  * Set the window split orientation. (vertical or horizontal)
+  *
+  * @param newOrientation
+  * The orientation to switch to.
+  */
+void if_set_winsplitorientation(WIN_SPLIT_ORIENTATION_TYPE newOrientation);
 
  /* if_set_winsplit:
   * ________________
@@ -174,7 +202,7 @@ void if_set_winsplit(WIN_SPLIT_TYPE newSplit);
  *  Highlights the current node of the source viewer to be the
  *  new language type.
  *
- *  l 	The new langugage type to highlight.
+ *  l 	The new language type to highlight.
  */
 void if_highlight_sviewer(enum tokenizer_language_support l);
 
@@ -186,6 +214,14 @@ void if_highlight_sviewer(enum tokenizer_language_support l);
  * Returns -1 if value is not acceptable. Otherwise, 0.
  */
 int if_change_winminheight(int value);
+
+/* if_change_winminwidth:
+ * 
+ * This sets the minimal width of a window. Windows will never become smaller.
+ *
+ * Returns -1 if value is not acceptable. Otherwise, 0.
+ */
+int if_change_winminwidth(int value);
 
 /**
  * This get's the height size of the GDB window.

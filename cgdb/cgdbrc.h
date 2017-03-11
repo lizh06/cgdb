@@ -63,7 +63,7 @@ void cgdbrc_init(void);
 int command_parse_string(const char *buffer);
 
 /**
- * Parse a configuration file, and execute teh commands that it contains.
+ * Parse a configuration file, and execute the commands that it contains.
  * The commands will be executed in order.
  *
  * \param fp
@@ -72,40 +72,57 @@ int command_parse_string(const char *buffer);
  * \return
  * Currently only returns 0.
  */
-int command_parse_file(FILE * fp);
+int command_parse_file(const char *config_file);
 
 /* }}} */
 
 /* Options types {{{ */
 
 /** 
- * The different ways to highlight the current line the debugger is at.
- * This enum name is incorrect, it should be renamed to something like,
- * 'enum HighlightStyle'.
+ * The different ways to display a line in the CGDB window.
  */
-enum ArrowStyle {
-    ARROWSTYLE_SHORT,
-    ARROWSTYLE_LONG,
-    ARROWSTYLE_HIGHLIGHT
+enum LineDisplayStyle {
+    LINE_DISPLAY_SHORT_ARROW,
+    LINE_DISPLAY_LONG_ARROW,
+    LINE_DISPLAY_HIGHLIGHT,
+    LINE_DISPLAY_BLOCK
 };
 
 /** window split type enumeration*/
 typedef enum { WIN_SPLIT_FREE = -3, /* split point not on quarter mark */
 
-    WIN_SPLIT_BOTTOM_FULL = -2, /* src window is 0%   of screen */
-    WIN_SPLIT_BOTTOM_BIG = -1,  /* src window is 25%  of screen */
+    WIN_SPLIT_GDB_FULL = -2,    /* src window is 0%   of screen */
+    WIN_SPLIT_GDB_BIG = -1,     /* src window is 25%  of screen */
     WIN_SPLIT_EVEN = 0,         /* src window is 50%  of screen */
-    WIN_SPLIT_TOP_BIG = 1,      /* src window is 75%  of screen */
-    WIN_SPLIT_TOP_FULL = 2      /* src window is 100% of screen */
+    WIN_SPLIT_SRC_BIG = 1,      /* src window is 75%  of screen */
+    WIN_SPLIT_SRC_FULL = 2      /* src window is 100% of screen */
 } WIN_SPLIT_TYPE;
+
+/** window split orientation type enumeration
+ *  
+ *  SPLIT_VERTICAL and SPLIT_HORIZONTAL refer to the orientation
+ *  of the split between the source and GDB windows.
+ */
+typedef enum {
+    WSO_HORIZONTAL, /* source above and GDB below (default) */
+    WSO_VERTICAL    /* source left and GDB right            */
+} WIN_SPLIT_ORIENTATION_TYPE;
 
 /** All of the different configuration options */
 enum cgdbrc_option_kind {
+    /* Arrow style is deprecated, use CGDBRC_EXECUTING_LINE_DISPLAY instead */
     CGDBRC_ARROWSTYLE,
     CGDBRC_AUTOSOURCERELOAD,
     CGDBRC_CGDB_MODE_KEY,
+    CGDBRC_COLOR,
+    CGDBRC_DEBUGWINCOLOR,
+    CGDBRC_DISASM,
+    CGDBRC_EXECUTING_LINE_DISPLAY,
+    CGDBRC_HLSEARCH,
     CGDBRC_IGNORECASE,
-    CGDBRC_SHOWTGDBCOMMANDS,
+    CGDBRC_SELECTED_LINE_DISPLAY,
+    CGDBRC_SHOWDEBUGCOMMANDS,
+    CGDBRC_SHOWMARKS,
     CGDBRC_SYNTAX,
     CGDBRC_TABSTOP,
     CGDBRC_TIMEOUT,
@@ -113,7 +130,9 @@ enum cgdbrc_option_kind {
     CGDBRC_TTIMEOUT,
     CGDBRC_TTIMEOUT_LEN,
     CGDBRC_WINMINHEIGHT,
+    CGDBRC_WINMINWIDTH,
     CGDBRC_WINSPLIT,
+    CGDBRC_WINSPLITORIENTATION,
     CGDBRC_WRAPSCAN
 };
 
@@ -122,23 +141,33 @@ struct cgdbrc_config_option {
     enum cgdbrc_option_kind option_kind;
     union {
         /* option_kind == CGDBRC_ARROWSTYLE */
-        enum ArrowStyle arrow_style;
+        /* option_kind == CGDBRC_EXECUTING_LINE_DISPLAY */
+        /* option_kind == CGDBRC_SELECTED_LINE_DISPLAY */
+        enum LineDisplayStyle line_display_style;
         /* option_kind == CGDBRC_AUTOSOURCERELOAD */
         /* option_kind == CGDBRC_CGDB_MODE_KEY */
+        /* option_kind == CGDBRC_COLOR */
+        /* option_kind == CGDBRC_DEBUGWINCOLOR */
+        /* option_kind == CGDBRC_DISASM */
+        /* option_kind == CGDBRC_HLSEARCH */
         /* option_kind == CGDBRC_IGNORECASE */
-        /* option_kind == CGDBRC_SHOWTGDBCOMMANDS */
+        /* option_kind == CGDBRC_SHOWDEBUGCOMMANDS */
+        /* option_kind == CGDBRC_SHOWMARKS */
         /* option_kind == CGDBRC_TABSTOP */
         /* option_kind == CGDBRC_TIMEOUT */
         /* option_kind == CGDBRC_TIMEOUTLEN */
         /* option_kind == CGDBRC_TTIMEOUT */
         /* option_kind == CGDBRC_TTIMEOUTLEN */
         /* option_kind == CGDBRC_WINMINHEIGHT */
+        /* option_kind == CGDBRC_WINMINWIDTH */
         /* option_kind == CGDBRC_WRAPSCAN */
         int int_val;
         /* option_kind == CGDBRC_SYNTAX */
         enum tokenizer_language_support language_support_val;
         /* option_kind == CGDBRC_WINSPLIT */
         WIN_SPLIT_TYPE win_split_val;
+        /* option_kind == CGDBRC_WINSPLITORIENTATION */
+        WIN_SPLIT_ORIENTATION_TYPE win_split_orientation_val;
     } variant;
 };
 
@@ -162,9 +191,6 @@ typedef int (*cgdbrc_notify) (cgdbrc_config_option_ptr option);
 /**
  * This will attach a new callback function for a particular option.
  * The client will be notified when the value is changed.
- * The handle returned from this function should be used if the 
- * client ever wishes to disable the callback function from being called when 
- * an option is changed.
  *
  * \param option
  * The new option to attach a callback to.
@@ -172,28 +198,10 @@ typedef int (*cgdbrc_notify) (cgdbrc_config_option_ptr option);
  * \param notify
  * The callback function to call when the state of the data changes.
  * 
- * \param handle
- * The unique identifier to use when detaching this notification
- * If the handle is passed in as NULL, it will not be set on the way out. This
- * callback can never be removed.
- *
  * \return
  * 0 on success or -1 on error
  */
-int cgdbrc_attach(enum cgdbrc_option_kind option, cgdbrc_notify notify,
-        int *handle);
-
-/**
- * This will detach a notify function so that it will no longer be called
- * when an option is updated.
- *
- * \param handle
- * The value returned from cgdbrc_attach when the notify request was made.
- *
- * \return
- * 0 on success, -1 if it couldn't be detached (error)
- */
-int cgdbrc_detach(int handle);
+int cgdbrc_attach(enum cgdbrc_option_kind option, cgdbrc_notify notify);
 
 /* }}} */
 
@@ -211,6 +219,8 @@ int cgdbrc_detach(int handle);
  * to the option asked for is returned.
  */
 cgdbrc_config_option_ptr cgdbrc_get(enum cgdbrc_option_kind option);
+int cgdbrc_get_int(enum cgdbrc_option_kind option);
+enum LineDisplayStyle cgdbrc_get_displaystyle(enum cgdbrc_option_kind option);
 
 /**
  * A convience function for determining the timeout that should be used to
