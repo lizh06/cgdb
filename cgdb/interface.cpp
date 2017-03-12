@@ -1540,8 +1540,6 @@ static int cgdb_input(int key, int *last_key)
             }
 
             break;
-
-        default: if (!common_input(key)) return 0;
     }
 
     source_input(src_viewer, key);
@@ -1593,10 +1591,9 @@ int internal_if_input(int key, int *last_key)
     /* Check for global keystrokes */
     switch (focus) {
         case CGDB:
-            return cgdb_input(key, last_key);
+            return common_input(key) && cgdb_input(key, last_key);
         case GDB:
             return common_input(key) && gdb_input(key, last_key);
-            // return gdb_input(key, last_key);
         case FILE_DLG:
         {
             char filedlg_file[MAX_LINE];
