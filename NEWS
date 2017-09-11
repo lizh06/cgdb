@@ -1,3 +1,24 @@
+  * Fix issue #139 - Show appropriate logos when color disabled
+    Previously, if the user had colors disabled, CGDB would still show
+    logos that had ansi escape color sequences in them.
+
+  * Fixed :highlight regression introduced in 0.7.0.
+    In 0.6.8, if the user entered a :highlight command from the CGDB
+    status bar, for instance:
+        :highlight Comment ctermfg=Blue
+    CGDB would updated the currently displayed source file
+    with the requested highlighting changes. In 0.7.0 this would not occur.
+    Both versions honored :highlight in the .cgdbrc file.
+
+  * Fix issue #125 - CGDB can cross compile again.
+
+  * The rust syntax highlighter is now case sensitive instead of case
+    insensitive.
+
+  * Fix issue #129. CGDB with old versions of ncurses (5.6 or before)
+    would not display colors. Now it will display colors, but will
+    not support ansi colors in the GDB window.
+
   * Fix issue #137. rustlexer.lpp fails to compile with some versions
     of GNU autotools.
 

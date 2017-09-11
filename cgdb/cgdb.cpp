@@ -66,6 +66,7 @@
 #include "sys_win.h"
 #include "cgdb.h"
 #include "tokenizer.h"
+#include "highlight_groups.h"
 #include "interface.h"
 #include "scroller.h"
 #include "sources.h"
@@ -1517,8 +1518,12 @@ void cgdb_cleanup_and_exit(int val)
      * started, is the reverse order in which they should be shutdown 
      */
 
+    swin_endwin();
+
     /* Shut down interface */
     if_shutdown();
+
+    hl_groups_shutdown(hl_groups_instance);
 
 #if 0
     if (masterfd != -1)
@@ -1791,6 +1796,7 @@ int main(int argc, char *argv[])
 
     current_line = ibuf_init();
 
+    /* Initialize default option values */
     cgdbrc_init();
 
     if (create_and_init_pair() == -1) {
@@ -1820,6 +1826,19 @@ int main(int argc, char *argv[])
 
     if (init_kui() == -1) {
         clog_error(CLOG_CGDB, "init_kui error");
+        cgdb_cleanup_and_exit(-1);
+    }
+
+    /* Initialize curses */
+    if (!swin_start()) {
+        clog_error(CLOG_CGDB, "Unable to start curses");
+    }
+
+    /* Initialize the highlighting groups */
+    hl_groups_instance = hl_groups_initialize();
+    if (!hl_groups_instance)
+    {
+        clog_error(CLOG_CGDB, "Unable to setup highlighting groups");
         cgdb_cleanup_and_exit(-1);
     }
 

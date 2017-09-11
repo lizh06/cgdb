@@ -26,15 +26,6 @@
 
 #define UNSPECIFIED_COLOR (-2)
 
-struct hl_setup_group_info {
-    enum hl_group_kind group_kind;
-    int mono_attrs;
-    int color_attrs;
-    int fg_color;
-    int bg_color;
-};
-static struct hl_setup_group_info *setup_group_infos = NULL;
-
 /** This represents all the data for a particular highlighting group. */
 struct hl_group_info {
   /** The kind of group */
@@ -49,13 +40,16 @@ struct hl_group_info {
 
 /** The main context used to represent all of the highlighting groups. */
 struct hl_groups {
-  /** If 0 then the terminal doesn't support colors, otherwise it does. */
-    int in_color;
-  /** If 1 then we parse ansi escape codes */
-    int ansi_esc_parsing;
-  /** 1 if the terminal supports ansi colors (8 colors, 64 color pairs). */
-    int ansi_color;
-  /** This is the data for each highlighting group. */
+    /**
+     * True if the terminal is can display ansi colors, otherwise False.
+     *
+     * Please note, this just determines if CGDB believes the terminal is
+     * capable of displaying ansi colors. CGDB's configuration will
+     * determine if colors should be displayed at all.
+     */
+    bool ansi_color_support;
+
+    /** This is the data for each highlighting group. */
     struct hl_group_info groups[HLG_LAST];
 };
 
@@ -288,6 +282,22 @@ enum hl_group_kind hl_get_color_group(const char *color)
     return color_info ? color_info->hlg_type : HLG_LAST;
 }
 
+/**
+ * Determine if color should be used.
+ *
+ * @return
+ * True if color should be used, false otherwise.
+ */
+static bool hl_color_support(void)
+{
+    return cgdbrc_get_int(CGDBRC_COLOR) && swin_has_colors();
+}
+
+bool hl_ansi_color_support(hl_groups *h)
+{
+    return hl_color_support() && h && h->ansi_color_support;
+}
+
 /* Given an ncurses COLOR_XX background and foreground color, return an ncurses
  *  color pair index for that color.
  */
@@ -297,7 +307,7 @@ static int hl_get_ansicolor_pair(hl_groups_ptr hl_groups, int bgcolor, int fgcol
     static int color_pair_table[9][9];
 
     /* If ansi colors aren't enabled, return default color pair 0 */
-    if (!hl_groups->ansi_color)
+    if (!hl_ansi_color_support(hl_groups))
         return 0;
 
     if (!color_pairs_inited) {
@@ -378,14 +388,14 @@ setup_group(hl_groups_ptr hl_groups, enum hl_group_kind group,
 
     /* The rest of this function sets up the colors, so we can stop here
      * if color isn't used. */
-    if (!hl_groups->in_color)
+    if (!hl_color_support())
         return 0;
 
     /* If no colors are specified, we're done. */
     if (fore_color == UNSPECIFIED_COLOR && back_color == UNSPECIFIED_COLOR)
         return 0;
 
-    if (hl_groups->ansi_color) {
+    if (hl_ansi_color_support(hl_groups)) {
         /* Ansi mode is enabled so we've got 16 colors and 64 color pairs.
            Set the color_pair index for this bg / fg color combination. */
         info->color_pair = hl_get_ansicolor_pair(hl_groups, back_color, fore_color);
@@ -427,19 +437,55 @@ setup_group(hl_groups_ptr hl_groups, enum hl_group_kind group,
     return 0;
 }
 
-/* }}}*/
+static int hl_groups_setup(hl_groups_ptr hl_groups)
+{
+    int i;
+    int val;
+    const struct default_hl_group_info *ginfo;
+    int colors = swin_colors();
+    int color_pairs = swin_color_pairs();
+    bool color_pairs_extension = swin_supports_default_color_pairs_extension();
+    bool in_color = hl_color_support();
 
-/* Creating and Destroying a hl_groups context. {{{*/
-/*@{*/
+    if (!hl_groups)
+        return -1;
+
+    ginfo = default_groups_for_background_dark;
+
+    hl_groups->ansi_color_support =
+        (colors >= 8) && (color_pairs >= 64) && color_pairs_extension;
+
+    clog_info(CLOG_CGDB, "Color support: %s",
+            (in_color) ? "Enabled" : "Disabled");
+    clog_info(CLOG_CGDB, "ANSI color support: %s",
+            (hl_groups->ansi_color_support) ? "Enabled" : "Disabled");
+    clog_info(CLOG_CGDB, "Number colors: %d", colors);
+    clog_info(CLOG_CGDB, "Number color pairs: %d", color_pairs);
+    clog_info(CLOG_CGDB, "Extended color pair support: %s",
+            (color_pairs_extension) ? "Yes" : "No");
+
+    /* Set up the default groups. */
+    for (i = 0; ginfo[i].kind != HLG_LAST; ++i) {
+        const struct default_hl_group_info *spec = &ginfo[i];
+
+        val = setup_group(hl_groups, spec->kind, spec->mono_attrs,
+                spec->color_attrs, spec->fore_color, spec->back_color);
+        if (val == -1) {
+            clog_error(CLOG_CGDB, "setup group.");
+            return -1;
+        }
+    }
+
+    return 0;
+}
 
 hl_groups_ptr hl_groups_initialize(void)
 {
     int i;
-    hl_groups_ptr hl_groups = (hl_groups_ptr) cgdb_malloc(sizeof (struct hl_groups));
-
-    hl_groups->in_color = 0;
-    hl_groups->ansi_esc_parsing = 0;
-    hl_groups->ansi_color = 0;
+    hl_groups_ptr hl_groups;
+    
+    hl_groups = (hl_groups_ptr) cgdb_malloc(sizeof (struct hl_groups));
+    hl_groups->ansi_color_support = false;
 
     for (i = 0; i < HLG_LAST; ++i) {
         struct hl_group_info *info;
@@ -449,6 +495,11 @@ hl_groups_ptr hl_groups_initialize(void)
         info->mono_attrs = 0;
         info->color_attrs = 0;
         info->color_pair = 0;
+    }
+
+    if (hl_groups_setup(hl_groups) == -1) {
+        hl_groups_shutdown(hl_groups);
+        hl_groups = NULL;
     }
 
     return hl_groups;
@@ -470,65 +521,6 @@ int hl_groups_shutdown(hl_groups_ptr hl_groups)
 /* Functional commands {{{*/
 
 /*@{*/
-
-int hl_groups_setup(hl_groups_ptr hl_groups)
-{
-    int i;
-    int val;
-    const struct default_hl_group_info *ginfo;
-    int colors = swin_colors();
-    int color_pairs = swin_color_pairs();
-
-    if (!hl_groups)
-        return -1;
-
-    ginfo = default_groups_for_background_dark;
-
-    hl_groups->in_color = cgdbrc_get_int(CGDBRC_COLOR) && swin_has_colors();
-
-    hl_groups->ansi_esc_parsing = cgdbrc_get_int(CGDBRC_DEBUGWINCOLOR);
-
-    hl_groups->ansi_color = hl_groups->in_color &&
-                            (colors >= 8) && (color_pairs >= 64);
-
-    clog_info(CLOG_CGDB, "Color support: %s",
-            (hl_groups->in_color) ? "Enabled" : "Disabled");
-    clog_info(CLOG_CGDB, "ANSI color support: %s",
-            (hl_groups->ansi_color) ? "Enabled" : "Disabled");
-    clog_info(CLOG_CGDB, "Number colors: %d", colors);
-    clog_info(CLOG_CGDB, "Number color pairs: %d", color_pairs);
-
-    /* Set up the default groups. */
-    for (i = 0; ginfo[i].kind != HLG_LAST; ++i) {
-        const struct default_hl_group_info *spec = &ginfo[i];
-
-        val = setup_group(hl_groups, spec->kind, spec->mono_attrs,
-                spec->color_attrs, spec->fore_color, spec->back_color);
-        if (val == -1) {
-            clog_error(CLOG_CGDB, "setup group.");
-            return -1;
-        }
-    }
-
-    if (setup_group_infos) {
-        for (i = 0; i < sbcount(setup_group_infos); i++) {
-            struct hl_setup_group_info *group_info = &setup_group_infos[i];
-
-            val = setup_group(hl_groups, group_info->group_kind,
-                              group_info->mono_attrs, group_info->color_attrs,
-                              group_info->fg_color, group_info->bg_color);
-            if (val == -1) {
-                clog_error(CLOG_CGDB, "setup group.");
-                return -1;
-            }
-        }
-
-        sbfree(setup_group_infos);
-        setup_group_infos = NULL;
-    }
-
-    return 0;
-}
 
 int
 hl_groups_get_attr(hl_groups_ptr hl_groups, enum hl_group_kind kind)
@@ -587,7 +579,7 @@ hl_groups_get_attr(hl_groups_ptr hl_groups, enum hl_group_kind kind)
     }
 
     if (hl_groups && info) {
-        if (!hl_groups->in_color)
+        if (!hl_color_support())
             attr = info->mono_attrs;
         else {
             attr = info->color_attrs;
@@ -788,25 +780,10 @@ int hl_groups_parse_config(hl_groups_ptr hl_groups)
         }
     }
 
-    if (!hl_groups) {
-        /* We haven't had our group initialized yet, so this is coming in when reading
-           the cgdb rc file. Store this information and set it in hl_gruops_setup().
-         */
-        struct hl_setup_group_info group_info;
-
-        group_info.group_kind = group_kind;
-        group_info.mono_attrs = mono_attrs;
-        group_info.color_attrs = color_attrs;
-        group_info.fg_color = fg_color;
-        group_info.bg_color = bg_color;
-
-        sbpush(setup_group_infos, group_info);
-    } else {
-        val = setup_group(hl_groups, group_kind, mono_attrs, color_attrs, fg_color,
-                bg_color);
-        if (val == -1) {
-            return 1;
-        }
+    val = setup_group(hl_groups, group_kind, mono_attrs, color_attrs, fg_color,
+            bg_color);
+    if (val == -1) {
+        return 1;
     }
 
     return 0;
@@ -919,7 +896,7 @@ int hl_ansi_get_color_attrs(hl_groups_ptr hl_groups,
 
     /* If we're not in ansi mode, just return default color pair 0 and
      * don't parse the string. */
-    if (!hl_groups->ansi_color)
+    if (!hl_ansi_color_support(hl_groups))
         return 0;
 
     if ((buf[i++] == '\033') && (buf[i++] == '[')) {
@@ -1047,6 +1024,28 @@ static void hl_printspan(SWINDOW *win, const char *line, int line_len, int attr)
     swin_wattroff(win, attr);
 }
 
+hl_line_attr::hl_line_attr(int col, int attr) :
+    m_col(col), m_is_group(false), m_attr(attr) {}
+hl_line_attr::hl_line_attr(int col, enum hl_group_kind kind) :
+    m_col(col), m_is_group(true), m_attr((int)kind) {}
+
+int hl_line_attr::col(void) const {
+    return m_col;
+}
+
+int hl_line_attr::as_attr(void) const {
+    int attr;
+
+    if (m_is_group) {
+        attr = hl_groups_get_attr(hl_groups_instance,
+                (enum hl_group_kind)m_attr);
+    } else {
+        attr = m_attr;
+    }
+
+    return attr;
+}
+
 void hl_printline(SWINDOW *win, const char *line, int line_len,
         const hl_line_attr *attrs, int x, int y, int col, int width)
 {
@@ -1075,11 +1074,11 @@ void hl_printline(SWINDOW *win, const char *line, int line_len,
         int i;
 
         for (i = 0; i < sbcount(attrs); i++) {
-            if (attrs[i].col <= col) {
-                attr = attrs[i].attr;
+            if (attrs[i].col() <= col) {
+                attr = attrs[i].as_attr();
             }
-            else if (attrs[i].col < col + count) {
-                int len = attrs[i].col - col;
+            else if (attrs[i].col() < col + count) {
+                int len = attrs[i].col() - col;
 
                 hl_printspan(win, line + col, len, attr);
 
@@ -1087,7 +1086,7 @@ void hl_printline(SWINDOW *win, const char *line, int line_len,
                 count -= len;
                 width -= len;
 
-                attr = attrs[i].attr;
+                attr = attrs[i].as_attr();
             } else {
                 hl_printspan(win, line + col, count, attr);
 
@@ -1132,11 +1131,11 @@ void hl_printline_highlight(SWINDOW *win, const char *line, int line_len,
         int i;
 
         for (i = 0; i < sbcount(attrs); i++) {
-            if (attrs[i].col <= col) {
-                attr = attrs[i].attr;
+            if (attrs[i].col() <= col) {
+                attr = attrs[i].as_attr();
             }
-            else if (attrs[i].col < col + count) {
-                int len = attrs[i].col - col;
+            else if (attrs[i].col() < col + count) {
+                int len = attrs[i].col() - col;
 
                 if (attr)
                     hl_printspan(win, line + col, len, attr);
@@ -1147,7 +1146,7 @@ void hl_printline_highlight(SWINDOW *win, const char *line, int line_len,
                 count -= len;
                 width -= len;
 
-                attr = attrs[i].attr;
+                attr = attrs[i].as_attr();
             } else {
                 if (attr)
                     hl_printspan(win, line + col, count, attr);
