@@ -133,17 +133,6 @@ int hl_groups_shutdown(hl_groups_ptr hl_groups);
 /*@{*/
 
 /**
- * Setup the highlighting group to have all of the default values.
- *
- * \param hl_groups
- * An instance of hl_groups to operate on.
- *
- * \return
- * 0 on success or -1 on error
- */
-int hl_groups_setup(hl_groups_ptr hl_groups);
-
-/**
  * Get the attributes that may be passed to swin_wattron to tell the curses library
  * how to print this particular group.
  *
@@ -175,6 +164,14 @@ int hl_groups_get_attr(hl_groups_ptr hl_groups, enum hl_group_kind kind);
 int hl_groups_parse_config(hl_groups_ptr hl_groups);
 
 /**
+ * Determine if ansi color mode is currently enabled.
+ *
+ * @return
+ * True if ansi color is enabled, false otherwise.
+ */
+bool hl_ansi_color_support(hl_groups *h);
+
+/**
  * Parse an ansi SGR (Select Graphic Rendition) escape sequence and return the
  * attributes you can use with ncurses.
  *
@@ -196,15 +193,64 @@ int hl_ansi_get_color_attrs(hl_groups_ptr hl_groups,
 enum hl_group_kind hl_get_color_group(const char *color);
 
 /**
- * Given a set of attributes and the column they start at, print the line.
+ * An attribute at a particular column in a line.
  */
 struct hl_line_attr {
-    int col;
-    int attr;
+
+    /**
+     * Create an attribute using a raw ncurses attribute.
+     *
+     * @param col
+     * The column the attribute starts at within a line.
+     *
+     * @param attr
+     * The raw ncurses attribute to enable at this column.
+     */
+    hl_line_attr(int col, int attr);
+
+    /**
+     * Create an attribute using a highlighting group kind.
+     *
+     * @param col
+     * The column the attribute starts at within a line.
+     *
+     * @param kind
+     * The highlighting group kind to enable at this column.
+     */
+    hl_line_attr(int col, enum hl_group_kind kind);
+
+    /**
+     * Get back the column this attribute starts at.
+     *
+     * @return
+     * The column this attribute starts at.
+     */
+    int col(void) const;
+
+    /**
+     * Get the raw ncurses attribute.
+     *
+     * @return
+     * A raw ncurses attribute.
+     */
+    int as_attr(void) const;
+
+    private:
+        /// The column this attribute starts at
+        int m_col;
+        /// True if this is a highlighting group, False if a raw ncurse attr
+        bool m_is_group;
+        /**
+         * The highlighting attribute.
+         *
+         * If m_is_group is true, this can be cast to an hl_group_kind.
+         * Otherwise, it is the raw ncurses attribute.
+         */
+        int m_attr;
 };
 
 /**
- * Print a line with highlighting.
+ * Given a set of attributes and the column they start at, print the line.
  *
  * @param win
  * The window to write to.
