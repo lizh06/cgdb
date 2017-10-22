@@ -1487,6 +1487,45 @@ static int cgdb_input(int key, int *last_key)
             }
 
             break;
+        case CGDB_KEY_CTRL_W:
+            switch (cur_split_orientation) {
+                case WSO_HORIZONTAL:
+                    cur_split_orientation = WSO_VERTICAL;
+                    break;
+                case WSO_VERTICAL:
+                    cur_split_orientation = WSO_HORIZONTAL;
+                    break;
+            }
+
+            if_layout();
+
+            break;
+        case CGDB_KEY_F1:
+            if_display_help();
+            return 0;
+        case CGDB_KEY_F5:
+            /* Issue GDB run command */
+            tgdb_request_run_debugger_command(tgdb, TGDB_RUN);
+            return 0;
+        case CGDB_KEY_F6:
+            /* Issue GDB continue command */
+            tgdb_request_run_debugger_command(tgdb, TGDB_CONTINUE);
+            return 0;
+        case CGDB_KEY_F7:
+            /* Issue GDB finish command */
+            tgdb_request_run_debugger_command(tgdb, TGDB_FINISH);
+            return 0;
+        case CGDB_KEY_F8:
+            /* Issue GDB next command */
+            tgdb_request_run_debugger_command(tgdb, TGDB_NEXT);
+            return 0;
+        case CGDB_KEY_F10:
+            /* Issue GDB step command */
+            tgdb_request_run_debugger_command(tgdb, TGDB_STEP);
+            return 0;
+        case CGDB_KEY_CTRL_L:
+            if_layout();
+            return 0;
     }
 
     source_input(src_viewer, key);
