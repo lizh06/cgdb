@@ -2,7 +2,9 @@
 #define __KUI_H__
 
 /* includes {{{ */
-#include "std_list.h"
+#include <string>
+#include <list>
+
 #include "kui_cgdb_key.h"
 /* }}} */
 
@@ -176,6 +178,9 @@ int kui_ms_destroy(struct kui_map_set *kui_ms);
 /**
  * Add a map to the map set.
  *
+ * If a map already exists with this key in the map set,
+ * it will be deleted and replaced by the new requested mapping.
+ *
  * \param kui_ms
  * The kui map set to add to.
  *
@@ -206,19 +211,6 @@ int kui_ms_register_map(struct kui_map_set *kui_ms,
  * or -2 if map did not exist.
  */
 int kui_ms_deregister_map(struct kui_map_set *kui_ms, const char *key);
-
-/**
- * Get's a list of kui_map's. This way, someone can iterate through
- * the list.
- *
- * \param kui_ms
- * A kui map set.
- *
- * @return
- * The list of maps, or NULL on error.
- * If there are no maps, of course the empty list will be returned.
- */
-std_list_ptr kui_ms_get_maps(struct kui_map_set *kui_ms);
 
 /*@}*/
 
@@ -346,9 +338,9 @@ int kui_set_map_set(struct kuictx *kctx, struct kui_map_set *kui_ms);
  * The kui context.
  *
  * @return
- * -1 on error, otherwise 1 if can get a key, or 0 if nothing available.
+ * True if can get a key, or false if nothing available.
  */
-int kui_cangetkey(struct kuictx *kctx);
+bool kui_cangetkey(struct kuictx *kctx);
 
 /**
  * Get's the next key for the application to process.
@@ -581,7 +573,7 @@ int kui_manager_set_key_mapping_timeout(struct kui_manager *kuim,
  * \param key
  * The key to bind the key sequences too.
  *
- * \param keyseq_list
+ * \param keyseq
  * The list of key sequences to bind to the key. Instead of just
  * making this a 'char*', it's a list, so that multiple sequences
  * can be bound in a single function call.
@@ -590,7 +582,7 @@ int kui_manager_set_key_mapping_timeout(struct kui_manager *kuim,
  * 0 on success or -1 on error
  */
 int kui_manager_get_terminal_keys_kui_map(struct kui_manager *kuim,
-        enum cgdb_key key, std_list_ptr kui_map_set);
+        enum cgdb_key key, const std::list<std::string> &keyseq);
 /*@}*/
 
 /* }}} */
