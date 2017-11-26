@@ -10,8 +10,8 @@
  *
  * kui_map_set
  *  - A kui map_set is many kui_map items.
- *  - This data structure stores the kui maps in a list and a kui tree.
- *  - The list is used to keep track of what kui maps are in this set.
+ *  - This data structure stores the kui maps in a std::map and a kui tree.
+ *  - The std::map is used to keep track of what kui maps exist
  *  - The kui tree is used to keep track of what mappings are being
  *    matched when recieving input.
  *
@@ -65,6 +65,10 @@
 
 #include <fcntl.h>
 #include <errno.h>
+
+#include <map>
+#include <list>
+
 #include "kui.h"
 #include "sys_util.h"
 #include "io.h"
@@ -269,40 +273,20 @@ struct kui_map_set {
      * in doing the work, it looks only at the current key read.  */
     struct kui_tree *ktree;
 
-    /* A linked list of the maps being checked for. */
-    std_list_ptr maps;
+    /**
+     * All of the maps in this kui map set
+     *
+     * The key is what you type to trigger the mapping. The value
+     * is the kui_map representing the mapping.
+     */
+    std::map<std::string, kui_map*> maps;
 };
-
-static int kui_map_destroy_callback(void *data)
-{
-    struct kui_map *map;
-
-    if (!data)
-        return -1;
-
-    map = (struct kui_map *) data;
-
-    return kui_map_destroy(map);
-}
 
 struct kui_map_set *kui_ms_create(void)
 {
-    struct kui_map_set *map;
-
-    map = (struct kui_map_set *) malloc(sizeof (struct kui_map_set));
-
-    if (!map)
-        return NULL;
-
-    map->maps = std_list_create(kui_map_destroy_callback);
-
-    if (!map->maps) {
-        kui_ms_destroy(map);
-        return NULL;
-    }
+    kui_map_set *map = new kui_map_set();
 
     map->ktree = kui_tree_create();
-
     if (!map->ktree) {
         kui_ms_destroy(map);
         return NULL;
@@ -323,32 +307,16 @@ int kui_ms_destroy(struct kui_map_set *kui_ms)
             retval = -1;
     }
 
-    if (kui_ms->maps) {
-        if (std_list_destroy(kui_ms->maps) == -1)
-            retval = -1;
-        kui_ms->maps = NULL;
+    for (auto it = kui_ms->maps.cbegin(); it != kui_ms->maps.cend();)
+    {
+        kui_map_destroy(it->second);
+        kui_ms->maps.erase(it++);
     }
 
-    free(kui_ms);
-    kui_ms = NULL;
+
+    delete kui_ms;
 
     return retval;
-}
-
-static int kui_map_compare_callback(const void *a, const void *b)
-{
-    struct kui_map *one = (struct kui_map *) a;
-    struct kui_map *two = (struct kui_map *) b;
-
-    return strcmp(one->original_key, two->original_key);
-}
-
-static int kui_map_compare_key_callback(const void *a, const void *b)
-{
-    struct kui_map *one = (struct kui_map *) a;
-    char *two = (char *) b;
-
-    return strcmp(one->original_key, two);
 }
 
 int kui_ms_register_map(struct kui_map_set *kui_ms,
@@ -360,13 +328,16 @@ int kui_ms_register_map(struct kui_map_set *kui_ms,
         return -1;
 
     map = kui_map_create(key_data, value_data);
-
     if (!map)
         return -1;
 
-    if (std_list_insert_sorted(kui_ms->maps, map,
-                    kui_map_compare_callback) == -1)
-        return -1;
+    auto iter = kui_ms->maps.find(key_data);
+    if (iter != kui_ms->maps.end()) {
+        kui_map_destroy(iter->second);
+        kui_ms->maps.erase(iter);
+    }
+
+    kui_ms->maps[key_data] = map;
 
     if (kui_tree_insert(kui_ms->ktree, map->literal_key, map) == -1)
         return -1;
@@ -376,32 +347,20 @@ int kui_ms_register_map(struct kui_map_set *kui_ms,
 
 int kui_ms_deregister_map(struct kui_map_set *kui_ms, const char *key)
 {
-    std_list_iterator iter;
-    struct kui_map *map;
-    void *data;
-
     if (!kui_ms)
         return -1;
 
-    iter = std_list_find(kui_ms->maps, key, kui_map_compare_key_callback);
-
-    if (!iter)
+    auto iter = kui_ms->maps.find(key);
+    if (iter == kui_ms->maps.end()) {
         return -1;
-
-    if (std_list_get_data(iter, &data) == -1)
-        return -1;
-
-    /* If the mapping exists, remove it. */
-    if (data) {
-        map = (struct kui_map *) data;
-
-        /* Delete from the tree */
-        if (kui_tree_delete(kui_ms->ktree, map->literal_key) == -1)
-            return -1;
-
-        if (std_list_remove(kui_ms->maps, iter) == NULL)
-            return -1;
     }
+
+    /* Delete from the tree */
+    if (kui_tree_delete(kui_ms->ktree, iter->second->literal_key) == -1)
+        return -1;
+
+    kui_map_destroy(iter->second);
+    kui_ms->maps.erase(iter);
 
     return 0;
 }
@@ -422,12 +381,12 @@ struct kuictx {
     /**
 	 * A list of characters, used as a buffer for stdin.
 	 */
-    std_list_ptr buffer;
+    std::list<int> buffer;
 
     /**
 	 * A volitale buffer. This is reset upon every call to kui_getkey.
 	 */
-    std_list_ptr volatile_buffer;
+    std::list<int> volatile_buffer;
 
     /**
 	 * The callback function used to get data read in.
@@ -450,78 +409,24 @@ struct kuictx {
     int fd;
 };
 
-static int kui_ms_destroy_int_callback(void *param)
-{
-    int *i = (int *) param;
-
-    if (!i)
-        return -1;
-
-    free(i);
-    i = NULL;
-
-    return 0;
-}
-
 struct kuictx *kui_create(int stdinfd,
         kui_getkey_callback callback, int ms, void *state_data)
 {
-    struct kuictx *kctx;
-
-    kctx = (struct kuictx *) malloc(sizeof (struct kuictx));
-
-    if (!kctx)
-        return NULL;
+    struct kuictx *kctx = new kuictx();
 
     kctx->callback = callback;
     kctx->state_data = state_data;
     kctx->map_set = NULL;
     kctx->ms = ms;
-
     kctx->fd = stdinfd;
-
-    kctx->buffer = std_list_create(kui_ms_destroy_int_callback);
-
-    if (!kctx->buffer) {
-        kui_destroy(kctx);
-        return NULL;
-    }
-
-    kctx->volatile_buffer = std_list_create(kui_ms_destroy_int_callback);
-
-    if (!kctx->volatile_buffer) {
-        kui_destroy(kctx);
-        return NULL;
-    }
 
     return kctx;
 }
 
 int kui_destroy(struct kuictx *kctx)
 {
-    int ret = 0;
-
-    if (!kctx)
-        return -1;
-
-    kctx->map_set = NULL;
-
-    if (kctx->buffer) {
-        if (std_list_destroy(kctx->buffer) == -1)
-            ret = -1;
-        kctx->buffer = NULL;
-    }
-
-    if (kctx->volatile_buffer) {
-        if (std_list_destroy(kctx->volatile_buffer) == -1)
-            ret = -1;
-        kctx->volatile_buffer = NULL;
-    }
-
-    free(kctx);
-    kctx = NULL;
-
-    return ret;
+    delete kctx;
+    return 0;
 }
 
 struct kui_map_set *kui_get_map_set(struct kuictx *kctx)
@@ -561,36 +466,13 @@ int kui_set_map_set(struct kuictx *kctx, struct kui_map_set *kui_ms)
  */
 static int kui_findchar(struct kuictx *kctx, int *key)
 {
-    int length;
-    void *data;
-    std_list_iterator iter;
-
     if (!key)
         return -1;
 
-    /* Use the buffer first. */
-    length = std_list_length(kctx->buffer);
+    if (kctx->buffer.size()) {
+        *key = kctx->buffer.front();
 
-    if (length == -1)
-        return -1;
-
-    if (length > 0) {
-        /* Take the first char in the list */
-        iter = std_list_begin(kctx->buffer);
-
-        if (!iter)
-            return -1;
-
-        if (std_list_get_data(iter, &data) == -1)
-            return -1;
-
-        /* Get the char */
-        *key = *(int *) data;
-
-        /* Delete the item */
-        if (std_list_remove(kctx->buffer, iter) == NULL)
-            return -1;
-
+        kctx->buffer.pop_front();
     } else {
         /* Otherwise, look to read in a char,
          * This function called returns the same conditions as this function*/
@@ -629,8 +511,7 @@ static int kui_update_map_set(struct kuictx *kctx, int key, int *map_found)
 
     if (*map_found) {
         /* If a map was found, reset the extra char's read */
-        if (std_list_remove_all(kctx->volatile_buffer) == -1)
-            return -1;
+        kctx->volatile_buffer.clear();
     }
 
     return 0;
@@ -783,65 +664,22 @@ static int kui_update_buffer(struct kuictx *kctx,
         struct kui_map *the_map_found, int map_was_found, int *key)
 {
 
-    int i;
-    std_list_iterator iter;
-
-    if (!map_was_found) {
-        void *data;
-
-        iter = std_list_end(kctx->volatile_buffer);
-
-        iter = std_list_previous(iter);
-
-        if (!iter || iter == std_list_end(kctx->volatile_buffer))
-            return -1;
-
-        if (std_list_get_data(iter, &data) == -1)
-            return -1;
-
-        *key = *(int *) data;
-
-        if (std_list_remove(kctx->volatile_buffer, iter) == NULL)
-            return -1;
+    if (!map_was_found && kctx->volatile_buffer.size()) {
+        *key = kctx->volatile_buffer.back();
+        kctx->volatile_buffer.pop_back();
     }
 
-    /* Add the extra char's read */
-    for (iter = std_list_begin(kctx->volatile_buffer);
-            iter != std_list_end(kctx->volatile_buffer);
-            iter = std_list_next(iter)) {
-
-        int *val = (int *)malloc(sizeof (int));
-        void *data;
-
-        if (!val)
-            return -1;
-
-        if (std_list_get_data(iter, &data) == -1)
-            return -1;
-
-        *val = *(int *) data;
-
-        if (std_list_prepend(kctx->buffer, val) == -1)
-            return -1;
+    for (auto it : kctx->volatile_buffer) {
+        kctx->buffer.push_front(it);
     }
 
     /* Add the map value */
     if (map_was_found) {
-        int length;
-
         /* Add the value onto the buffer */
-        length = intlen(the_map_found->literal_value);
+        int length = intlen(the_map_found->literal_value);
 
-        for (i = length - 1; i >= 0; --i) {
-            int *val = (int *)malloc(sizeof (int));
-
-            if (!val)
-                return -1;
-
-            *val = the_map_found->literal_value[i];
-
-            if (std_list_prepend(kctx->buffer, val) == -1)
-                return -1;
+        for (int i = length - 1; i >= 0; --i) {
+            kctx->buffer.push_front(the_map_found->literal_value[i]);
         }
     }
 
@@ -866,7 +704,6 @@ static int kui_findkey(struct kuictx *kctx, int *was_map_found)
     int key, retval;
     int should_continue;
     struct kui_map *the_map_found = NULL;
-    int *val;
     int map_found;
 
     /* Validate parameters */
@@ -890,8 +727,7 @@ static int kui_findkey(struct kuictx *kctx, int *was_map_found)
         }
     }
 
-    if (std_list_remove_all(kctx->volatile_buffer) == -1)
-        return -1;
+    kctx->volatile_buffer.clear();
 
     if (kui_tree_reset_state(kctx->map_set->ktree) == -1)
         return -1;
@@ -906,13 +742,7 @@ static int kui_findkey(struct kuictx *kctx, int *was_map_found)
         if (retval == 0)
             break;
 
-        /* Append to the list */
-        val = (int *)malloc(sizeof (int));
-        if (!val)
-            return -1;
-        *val = key;
-        if (std_list_prepend(kctx->volatile_buffer, val) == -1)
-            return -1;
+        kctx->volatile_buffer.push_front(key);
 
         /* Update each list, with the character read, and the position. */
         if (kui_update_map_set(kctx, key, &map_found) == -1)
@@ -971,20 +801,9 @@ int kui_getkey(struct kuictx *kctx)
     return key;
 }
 
-int kui_cangetkey(struct kuictx *kctx)
+bool kui_cangetkey(struct kuictx *kctx)
 {
-    int length;
-
-    /* Use the buffer first. */
-    length = std_list_length(kctx->buffer);
-
-    if (length == -1)
-        return -1;
-
-    if (length > 0)
-        return 1;
-
-    return 0;
+    return kctx && kctx->buffer.size() != 0;
 }
 
 int kui_set_blocking_ms(struct kuictx *kctx, unsigned long msec)
@@ -1233,12 +1052,10 @@ kui_manager_set_key_mapping_timeout(struct kui_manager *kuim, unsigned int msec)
 
 int
 kui_manager_get_terminal_keys_kui_map(struct kui_manager *kuim,
-        enum cgdb_key key, std_list_ptr kui_map_set)
+        enum cgdb_key key, const std::list<std::string> &keyseq)
 {
     struct kui_map_set *map_set;
     struct kuictx *terminalkeys;
-    std_list_iterator iter;
-    void *data;
     const char *keycode_str;
 
     if (!kuim)
@@ -1252,14 +1069,8 @@ kui_manager_get_terminal_keys_kui_map(struct kui_manager *kuim,
     terminalkeys = kuim->terminal_keys;
     map_set = kui_get_map_set(terminalkeys);
 
-    /* At this point, the kui_map_set is available
-     * Add each kui_map_set into it. */
-    for (iter = std_list_begin(kui_map_set);
-            iter != std_list_end(kui_map_set);
-            iter = std_list_next(iter)) {
-        if (std_list_get_data(iter, &data) == -1)
-            return -1;
-        kui_ms_register_map(map_set, (const char *)data, keycode_str);
+    for (const auto &data : keyseq) {
+        kui_ms_register_map(map_set, data.c_str(), keycode_str);
     }
 
     return 0;
