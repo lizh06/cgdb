@@ -1,29 +1,30 @@
 # Contributing to CGDB
 
-## Submitting patches
+## Submitting Patches
 
 ### Submission Process
 
-If you are interested in contributing to CGDB, discuss your ideas
-with CGDB's active maintainers. Once a feature or bug has been agreed
-to be worked on by both parties, fork CGDB and develop your
-feature in a new branch. Commit and push your changes and send
-a pull request when ready.
+If you are interested in contributing to CGDB, discuss your ideas with CGDB's
+active maintainers. Once a feature or bug has been agreed to be worked on by
+both parties, fork CGDB and develop your feature in a new branch. Commit and
+push your changes and send a pull request when ready.
 
 ### Signed-off-by Process
 
-CGDB uses the signed-off-by language and process, used by the Linux
-kernel, to give us a clear chain of trust for every patch received.
+CGDB uses the signed-off-by language and process, used by the Linux kernel, to
+give us a clear chain of trust for every patch received.
 
-In short, you need to include a signed-off-by tag in every patch.
-This is a developer's certification that he or she has the right to
-submit the patch for inclusion in this project. It is an agreement
-to the Developer's Certificate of Origin (below). Code without a
-proper signoff cannot be merged into the mainline.
+In short, you need to include a signed-off-by tag in every patch. This is a
+developer's certification that he or she has the right to submit the patch for
+inclusion in this project. It is an agreement to the Developer's Certificate of
+Origin (below). Code without a proper signoff cannot be merged into the
+mainline.
 
-When submitting code for inclusion in CGDB, you agree to allow the
-project owners to license your work under the terms of the
-Modified BSD License and the GPL version 2 or later.
+When submitting code for inclusion in CGDB, you agree to allow the project
+owners to license your work under the terms of the Modified BSD License and the
+GPL version 2 or later.
+
+To sign-off a commit, use the `-s` or `--signoff` option.
 
 ### Developer's Certificate of Origin
 
